@@ -16,8 +16,6 @@ class CTViewerGUI(tk.Tk):
         self.minsize(900, 650)
 
         # Menampung semua volume yang diimport selama aplikasi berjalan
-        # key: nama tampil di dropdown
-        # value: dict {path, data, shape}
         self.volumes = {}
         self.current_key = None
 
@@ -77,7 +75,6 @@ class CTViewerGUI(tk.Tk):
         top.grid(row=0, column=0, sticky="ew")
         self.grid_columnconfigure(0, weight=1)
 
-        # Dropdown dataset hasil import
         ttk.Label(top, text="DROPDOWN DATASET").grid(row=0, column=0, sticky="w", padx=(0, 8))
 
         self.dataset_var = tk.StringVar(value="Belum ada file")
@@ -91,76 +88,130 @@ class CTViewerGUI(tk.Tk):
         self.dataset_dropdown.grid(row=0, column=1, sticky="w")
         self.dataset_dropdown.bind("<<ComboboxSelected>>", self.on_select_dataset)
 
-        # Spacer
         top.grid_columnconfigure(2, weight=1)
 
-        # Tombol save kanan
         self.save_btn = ttk.Button(top, text="TOMBOL SAVE", command=self.on_save)
         self.save_btn.grid(row=0, column=3, sticky="e")
 
     # =========================
-    # MAIN LAYOUT
+    # MAIN LAYOUT (DIUBAH SESUAI SKETSA)
     # =========================
     def _build_main_layout(self):
+        # container utama
         container = ttk.Frame(self, style="App.TFrame", padding=(16, 8, 16, 16))
         container.grid(row=1, column=0, sticky="nsew")
         self.grid_rowconfigure(1, weight=1)
 
-        container.grid_columnconfigure(0, weight=1, uniform="col")
-        container.grid_columnconfigure(1, weight=1, uniform="col")
-        container.grid_rowconfigure(0, weight=1, uniform="row")
-        container.grid_rowconfigure(1, weight=1, uniform="row")
+        # 2 kolom: kiri tools, kanan visualisasi
+        container.grid_columnconfigure(0, weight=0)   # tools
+        container.grid_columnconfigure(1, weight=1)   # viewer
+        container.grid_rowconfigure(0, weight=1)
 
-        axial_wrapper, self.axial_axes, self.axial_canvas = self._build_view_panel_with_plot(
-            parent=container,
-            title="GRID UNTUK VISUALISASI AXIAL",
-            slider_label="SLIDER UNTUK GANTI SLICE AXIAL",
+        # =================
+        # KIRI: TOOL PANEL
+        # =================
+        tool_panel = ttk.Labelframe(
+            container,
+            text="AREA TOOL SEGMENTASI",
+            style="Panel.TLabelframe",
+            padding=(10, 10)
+        )
+        tool_panel.grid(row=0, column=0, sticky="ns", padx=(0, 12))
+        tool_panel.configure(width=230)
+        tool_panel.grid_propagate(False)
+
+        # Placeholder isi tool
+        ttk.Label(
+            tool_panel,
+            text="(Placeholder)\n\n• Brush\n• Eraser\n• Threshold\n• Undo/Redo\n• Overlay Mask",
+            justify="left"
+        ).pack(anchor="nw")
+
+        # ===========================
+        # KANAN: VISUALISASI 2x2 GRID
+        # ===========================
+        vis = ttk.Frame(container, style="App.TFrame")
+        vis.grid(row=0, column=1, sticky="nsew")
+
+        vis.grid_columnconfigure(0, weight=1)
+        vis.grid_columnconfigure(1, weight=1)
+        # baris 0 slider atas (axial, sagital)
+        vis.grid_rowconfigure(0, weight=0)
+        # baris 1 view atas (axial, sagital)
+        vis.grid_rowconfigure(1, weight=1)
+        # baris 2 slider bawah (coronal di kiri, kosong di kanan)
+        vis.grid_rowconfigure(2, weight=0)
+        # baris 3 view bawah (coronal, 3d)
+        vis.grid_rowconfigure(3, weight=1)
+
+        # Baris 0: slider axial dan sagital
+        self.axial_slider_row = self._build_slider_row(
+            parent=vis,
+            label_text="SLIDER UNTUK GANTI SLICE AXIAL",
             var=self.axial_var,
             store_scale_as="axial_scale",
             on_change=self.on_axial_change
         )
-        axial_wrapper.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(0, 10))
+        self.axial_slider_row.grid(row=0, column=0, sticky="ew", padx=4, pady=(0, 6))
 
-        sagital_wrapper, self.sagital_axes, self.sagital_canvas = self._build_view_panel_with_plot(
-            parent=container,
-            title="GRID UNTUK VISUALISASI SAGITAL",
-            slider_label="SLIDER UNTUK GANTI SLICE SAGITAL",
+        self.sagital_slider_row = self._build_slider_row(
+            parent=vis,
+            label_text="SLIDER UNTUK GANTI SLICE SAGITAL",
             var=self.sagital_var,
             store_scale_as="sagital_scale",
             on_change=self.on_sagital_change
         )
-        sagital_wrapper.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=(0, 10))
+        self.sagital_slider_row.grid(row=0, column=1, sticky="ew", padx=4, pady=(0, 6))
 
-        coronal_wrapper, self.coronal_axes, self.coronal_canvas = self._build_view_panel_with_plot(
-            parent=container,
-            title="GRID UNTUK VISUALISASI CORONAL",
-            slider_label="SLIDER UNTUK GANTI SLICE CORONAL",
+        # Baris 1: view axial dan sagital
+        self.axial_panel, self.axial_axes, self.axial_canvas = self._build_view_plot_only(
+            parent=vis,
+            title="GRID UNTUK VISUALISASI AXIAL"
+        )
+        self.axial_panel.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
+
+        self.sagital_panel, self.sagital_axes, self.sagital_canvas = self._build_view_plot_only(
+            parent=vis,
+            title="GRID UNTUK VISUALISASI SAGITAL"
+        )
+        self.sagital_panel.grid(row=1, column=1, sticky="nsew", padx=4, pady=4)
+
+        # Baris 2: slider coronal (kiri), kanan kosong
+        self.coronal_slider_row = self._build_slider_row(
+            parent=vis,
+            label_text="SLIDER UNTUK GANTI SLICE CORONAL",
             var=self.coronal_var,
             store_scale_as="coronal_scale",
             on_change=self.on_coronal_change
         )
-        coronal_wrapper.grid(row=1, column=0, sticky="nsew", padx=(0, 10), pady=(10, 0))
+        self.coronal_slider_row.grid(row=2, column=0, sticky="ew", padx=4, pady=(6, 6))
 
-        panel3d = ttk.Labelframe(container, text="GRID UNTUK 3D", style="Panel.TLabelframe", padding=(10, 10))
-        panel3d.grid(row=1, column=1, sticky="nsew", padx=(10, 0), pady=(10, 0))
+        ttk.Frame(vis, style="App.TFrame").grid(row=2, column=1, sticky="ew")
+
+        # Baris 3: view coronal dan 3D
+        self.coronal_panel, self.coronal_axes, self.coronal_canvas = self._build_view_plot_only(
+            parent=vis,
+            title="GRID UNTUK VISUALISASI CORONAL"
+        )
+        self.coronal_panel.grid(row=3, column=0, sticky="nsew", padx=4, pady=4)
+
+        panel3d = ttk.Labelframe(vis, text="GRID UNTUK 3D", style="Panel.TLabelframe", padding=(10, 10))
+        panel3d.grid(row=3, column=1, sticky="nsew", padx=4, pady=4)
         panel3d.grid_rowconfigure(0, weight=1)
         panel3d.grid_columnconfigure(0, weight=1)
-
         ttk.Label(panel3d, text="TAMPILAN 3D (placeholder)", anchor="center").grid(row=0, column=0, sticky="nsew")
 
-    def _build_view_panel_with_plot(self, parent, title, slider_label, var, store_scale_as, on_change):
-        wrapper = ttk.Frame(parent, style="App.TFrame")
-        wrapper.grid_rowconfigure(1, weight=1)
-        wrapper.grid_columnconfigure(0, weight=1)
+    # =========================
+    # SLIDER ROW (LABEL + ◀ + SLIDER + ▶ + VALUE)
+    # =========================
+    def _build_slider_row(self, parent, label_text, var, store_scale_as, on_change):
+        frame = ttk.Frame(parent, style="App.TFrame")
+        frame.grid_columnconfigure(2, weight=1)
 
-        slider_frame = ttk.Frame(wrapper, style="App.TFrame")
-        slider_frame.grid(row=0, column=0, sticky="ew")
-        slider_frame.grid_columnconfigure(2, weight=1)
-
-        ttk.Label(slider_frame, text=slider_label).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        ttk.Label(frame, text=label_text).grid(row=0, column=0, sticky="w", padx=(0, 10))
 
         btn_left = ttk.Button(
-            slider_frame,
+            frame,
             text="◀",
             width=3,
             command=lambda: self._step(var, -1, on_change)
@@ -168,7 +219,7 @@ class CTViewerGUI(tk.Tk):
         btn_left.grid(row=0, column=1, sticky="w")
 
         slider = ttk.Scale(
-            slider_frame,
+            frame,
             from_=0,
             to=10,
             orient="horizontal",
@@ -177,14 +228,14 @@ class CTViewerGUI(tk.Tk):
         slider.grid(row=0, column=2, sticky="ew", padx=(8, 8))
 
         btn_right = ttk.Button(
-            slider_frame,
+            frame,
             text="▶",
             width=3,
             command=lambda: self._step(var, 1, on_change)
         )
         btn_right.grid(row=0, column=3, sticky="e")
 
-        value_lbl = ttk.Label(slider_frame, text=str(var.get()), width=5, anchor="e")
+        value_lbl = ttk.Label(frame, text=str(var.get()), width=5, anchor="e")
         value_lbl.grid(row=0, column=4, sticky="e", padx=(10, 0))
 
         setattr(self, store_scale_as, slider)
@@ -204,8 +255,13 @@ class CTViewerGUI(tk.Tk):
 
         var.trace_add("write", _sync)
 
-        panel = ttk.Labelframe(wrapper, text=title, style="Panel.TLabelframe", padding=(6, 6))
-        panel.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+        return frame
+
+    # =========================
+    # VIEW ONLY (PANEL + MATPLOTLIB CANVAS)
+    # =========================
+    def _build_view_plot_only(self, parent, title):
+        panel = ttk.Labelframe(parent, text=title, style="Panel.TLabelframe", padding=(6, 6))
         panel.grid_rowconfigure(0, weight=1)
         panel.grid_columnconfigure(0, weight=1)
 
@@ -216,7 +272,7 @@ class CTViewerGUI(tk.Tk):
         canvas = FigureCanvasTkAgg(fig, master=panel)
         canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
-        return wrapper, ax, canvas
+        return panel, ax, canvas
 
     # =========================
     # IMPORT DAN SELEKSI DATASET
@@ -276,7 +332,7 @@ class CTViewerGUI(tk.Tk):
                 return candidate
             i += 1
 
-    def _refresh_dataset_dropdown(self, select_key: str | None = None):
+    def _refresh_dataset_dropdown(self, select_key=None):
         keys = list(self.volumes.keys())
         if not keys:
             keys = ["Belum ada file"]
